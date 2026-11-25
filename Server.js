@@ -55,6 +55,7 @@ io.on('connection',sk=>{
  // state: [x,y,z,heading,speed,wheelAngle,flags,t]  flags: 1 horn,2 lights,4/8 indicators,16 handbrake,32/64 doors,128 reverse,256 brake,512 engine,1024 dead
  sk.on('s',m=>{
   if(!Array.isArray(m)||m.length<8)return;
+  if(p.ride>=0)return; // seated as a helper: this player has no truck of his own, ignore any state he sends
   const now=Date.now();if(now-p.win>1000){p.win=now;p.cnt=0}if(++p.cnt>MAX_MSG_PER_SEC)return;
   for(let i=0;i<8;i++)if(typeof m[i]!=='number'||!Number.isFinite(m[i]))return;
   const x=r2(cl(m[0],-WORLD,WORLD)),y=r2(cl(m[1],-100,1000)),z=r2(cl(m[2],-WORLD,WORLD));
@@ -70,7 +71,7 @@ io.on('connection',sk=>{
  sk.on('seat',m=>{const h=m&&Number.isInteger(m.h)?m.h:-1;
   if(h<0){if(p.ride>=0){p.ride=-1;io.emit('seat',{s:slot,h:-1})}return}
   const vs=[...players.values()],host=vs.find(o=>o.slot===h);
-  if(!host||host===p||host.ride>=0||vs.some(o=>o.ride===h)){sk.emit('seat',{s:slot,h:-1,no:1});return}
+  if(!host||host===p||host.ride>=0||p.ride>=0||vs.some(o=>o.ride===h||o.ride===slot)){sk.emit('seat',{s:slot,h:-1,no:1});return}
   p.ride=h;io.emit('seat',{s:slot,h})}); // 1 helper per truck; the driver seat is never offered
  sk.on('door',m=>{if(!m||!Number.isInteger(m.h))return;const host=[...players.values()].find(o=>o.slot===m.h);if(host&&host!==p)host.sk.emit('door',{o:m.o?1:0})}); // visitor asks the owner's phone to open/close the helper door
  sk.on('pingc',t=>sk.emit('pongc',t));
@@ -84,6 +85,7 @@ setInterval(()=>{
   for(const o of players.values()){
    if(o===v||!o.st)continue;
    let pr=v.pairs.get(o.sk.id);if(!pr){pr={ver:0,at:0,near:false};v.pairs.set(o.sk.id,pr)}
+   if(o.ride>=0){if(pr.near){out.push(o.st.concat(1));pr.near=false}continue} // helper is inside another truck: hide his own truck from everybody
    const d=Math.hypot(o.st[1]-vx,o.st[3]-vz);
    if(d<=(pr.near?NEAR_OUT:NEAR_IN)){
     if(!pr.near||((pr.ver!==o.ver||due)&&now-pr.at>=gapFor(d))){out.push(o.st);pr.near=true;pr.ver=o.ver;pr.at=now}
@@ -92,4 +94,3 @@ setInterval(()=>{
   if(out.length){if(due)v.sk.emit('w',out);else v.sk.volatile.emit('w',out)}}
 },1000/TICK_HZ);
 srv.listen(PORT,()=>console.log('Truck sync server :'+PORT+' | '+TICK_HZ+' Hz | interest '+NEAR_IN+' m'));
- 
