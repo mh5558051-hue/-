@@ -59,7 +59,7 @@ io.on('connection',sk=>{
   for(let i=0;i<8;i++)if(typeof m[i]!=='number'||!Number.isFinite(m[i]))return;
   const x=r2(cl(m[0],-WORLD,WORLD)),y=r2(cl(m[1],-100,1000)),z=r2(cl(m[2],-WORLD,WORLD));
   let h=m[3]%(2*Math.PI);if(h>Math.PI)h-=2*Math.PI;if(h<-Math.PI)h+=2*Math.PI;h=Math.round(h*1000)/1000;
-  const v=Math.round(cl(m[4],-10,110)*10)/10,w=Math.round(cl(m[5],-45,45)),f=cl(m[6]|0,0,16383),t=Math.round(m[7]);
+  const v=Math.round(cl(m[4],-10,110)*10)/10,w=Math.round(cl(m[5],-45,45)),f=cl(m[6]|0,0,65535),t=Math.round(m[7]);
   if(p.st&&t<=p.st[8])return;
   const first=!p.st;p.st=[p.slot,x,y,z,h,v,w,f,t];
   if(first)for(const q of players.values())if(q!==p&&Math.hypot(q.st?q.st[1]-x:1e9,q.st?q.st[3]-z:0)<=NEAR_IN)q.sk.emit('w',[p.st]);
@@ -68,21 +68,19 @@ io.on('connection',sk=>{
  sk.on('col',c=>{if(!Number.isInteger(c)||c<-1||c>0xFFFFFF)return;p.col=c;sk.broadcast.emit('col',{s:slot,c})}); // real paint colour: everyone draws the same
  sk.on('chat',t=>{if(typeof t!=='string')return;const n=Date.now();if(n-p.chatT<500)return;p.chatT=n;io.emit('chat',{from:p.slot+1,t:t.slice(0,120)})});
  sk.on('seat',m=>{const h=m&&Number.isInteger(m.h)?m.h:-1;
-  if(h<0){if(p.ride>=0){p.ride=-1;p.pairs.clear();p.snapAt=0;io.emit('seat',{s:slot,h:-1})}return}
+  if(h<0){if(p.ride>=0){p.ride=-1;io.emit('seat',{s:slot,h:-1})}return}
   const vs=[...players.values()],host=vs.find(o=>o.slot===h);
   if(!host||host===p||host.ride>=0||vs.some(o=>o.ride===h)){sk.emit('seat',{s:slot,h:-1,no:1});return}
-  p.ride=h;p.pairs.clear();p.snapAt=0;io.emit('seat',{s:slot,h});if(host.cab)sk.emit('cab',host.cab)}); // 1 helper per truck; the driver seat is never offered
+  p.ride=h;io.emit('seat',{s:slot,h})}); // 1 helper per truck; the driver seat is never offered
  sk.on('door',m=>{if(!m||!Number.isInteger(m.h))return;const host=[...players.values()].find(o=>o.slot===m.h);if(host&&host!==p)host.sk.emit('door',{o:m.o?1:0})}); // visitor asks the owner's phone to open/close the helper door
- // cab: the driver's phone sends its cabin state (engine, wipers, lights, display page, rpm...) -> relayed ONLY to the helper riding that truck
- sk.on('cab',m=>{if(!m||typeof m!=='object'||!m.hs)return;const n=Date.now();if(n-(p.cabT||0)<60)return;let j;try{j=JSON.stringify(m)}catch(e){return}if(j.length>1500)return;p.cabT=n;p.cab=m;for(const q of players.values())if(q.ride===p.slot)q.sk.volatile.emit('cab',m)});
  sk.on('pingc',t=>sk.emit('pongc',t));
  sk.on('disconnect',()=>{players.delete(sk.id);for(const q of players.values())if(q.ride===slot){q.ride=-1;io.emit('seat',{s:q.slot,h:-1})}for(const q of players.values())q.pairs.delete(sk.id);io.emit('leave',p.slot)})});
+const hostOf=h=>{for(const o of players.values())if(o.slot===h)return o;return null};
 setInterval(()=>{
  if(players.size<2)return;
  const now=Date.now();
  for(const v of players.values()){
-  const H=v.ride>=0?[...players.values()].find(o=>o.slot===v.ride):null,B=H&&H.st?H:v; // a helper travels WITH the host truck: distance/rate is measured from the host, not from his parked truck (fixes stutter / frozen truck)
-  const vx=B.st?B.st[1]:B.spawn.x,vz=B.st?B.st[3]:B.spawn.z,out=[],due=now-(v.snapAt||0)>=SNAP_MS;if(due)v.snapAt=now;
+  const hs=v.ride>=0?hostOf(v.ride):null,ps=hs&&hs.st?hs.st:v.st,vx=ps?ps[1]:v.spawn.x,vz=ps?ps[3]:v.spawn.z,out=[],due=now-(v.snapAt||0)>=SNAP_MS;if(due)v.snapAt=now;
   for(const o of players.values()){
    if(o===v||!o.st)continue;
    let pr=v.pairs.get(o.sk.id);if(!pr){pr={ver:0,at:0,near:false};v.pairs.set(o.sk.id,pr)}
