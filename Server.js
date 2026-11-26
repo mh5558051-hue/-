@@ -85,7 +85,6 @@ setInterval(()=>{
   for(const o of players.values()){
    if(o===v||!o.st)continue;
    let pr=v.pairs.get(o.sk.id);if(!pr){pr={ver:0,at:0,near:false};v.pairs.set(o.sk.id,pr)}
-   if(o.ride>=0){if(pr.near){out.push(o.st.concat(1));pr.near=false}continue} // helper is inside another truck: hide his own truck from everybody
    const d=Math.hypot(o.st[1]-vx,o.st[3]-vz);
    if(d<=(pr.near?NEAR_OUT:NEAR_IN)){
     if(!pr.near||((pr.ver!==o.ver||due)&&now-pr.at>=gapFor(d))){out.push(o.st);pr.near=true;pr.ver=o.ver;pr.at=now}
