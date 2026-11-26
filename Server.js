@@ -71,8 +71,10 @@ io.on('connection',sk=>{
  sk.on('seat',m=>{const h=m&&Number.isInteger(m.h)?m.h:-1;
   if(h<0){if(p.ride>=0){p.ride=-1;io.emit('seat',{s:slot,h:-1})}return}
   const vs=[...players.values()],host=vs.find(o=>o.slot===h);
-  if(!host||host===p||host.ride>=0||p.ride>=0||vs.some(o=>o.ride===h||o.ride===slot)){sk.emit('seat',{s:slot,h:-1,no:1});return}
+  if(!host||host===p||p.ride>=0||vs.some(o=>o.ride===h)){sk.emit('seat',{s:slot,h:-1,no:1});return}
   p.ride=h;io.emit('seat',{s:slot,h})}); // 1 helper per truck; the driver seat is never offered
+ sk.on('fx',n=>{if(n!=='air_horn'&&n!=='air_brake'&&n!=='brake')return;const t=Date.now();if(t-(p.fxT||0)<30)return;p.fxT=t;for(const q of players.values())if(q.ride===slot)q.sk.emit('fx',{s:slot,n})}); // driver's horn/brake sounds -> the helper(s) in his cab, every single one (reliable, not sampled from state)
+ sk.on('pkd',f=>{if(!Number.isInteger(f)||p.ride<0||!p.st)return;const st=p.st.slice(),M=2048|4096|8192;st[7]=(st[7]&~M)|(f&M);st[8]=st[8]+1;p.st=st;p.sig=null;p.ver=++SEQ;p.verAt=Date.now()}); // seated helper's PARKED truck got hit: its damage/flip flags are published
  sk.on('door',m=>{if(!m||!Number.isInteger(m.h))return;const host=[...players.values()].find(o=>o.slot===m.h);if(host&&host!==p)host.sk.emit('door',{o:m.o?1:0})}); // visitor asks the owner's phone to open/close the helper door
  sk.on('pingc',t=>sk.emit('pongc',t));
  sk.on('disconnect',()=>{players.delete(sk.id);for(const q of players.values())if(q.ride===slot){q.ride=-1;io.emit('seat',{s:q.slot,h:-1})}for(const q of players.values())q.pairs.delete(sk.id);io.emit('leave',p.slot)})});
